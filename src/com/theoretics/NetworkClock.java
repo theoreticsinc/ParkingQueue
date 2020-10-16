@@ -5,6 +5,7 @@
  */
 package com.theoretics;
 
+import com.pi4j.io.gpio.GpioPinDigitalOutput;
 import com.theoretics.DataBaseHandler;
 import com.theoretics.SystemStatus;
 import java.util.ArrayList;
@@ -17,14 +18,25 @@ import org.apache.logging.log4j.Logger;
  */
 public class NetworkClock implements Runnable {
 
+    //String card, type;
     ArrayList<String> cards;
+    ArrayList<String> types;
     //String serverIP = "192.168.1.10";
     DataBaseHandler dbh = new DataBaseHandler(CONSTANTS.serverIP);
     static Logger log = LogManager.getLogger(NetworkClock.class.getName());
     //String entranceID = "Entry Zone 2";
-
-    public NetworkClock(ArrayList<String> cards) {
-        this.cards = cards;
+//    ParkingPanel pp = null;
+    int MODE, OVERRIDE;
+    GpioPinDigitalOutput led1;
+    ParkingPanel pp = new ParkingPanel();
+    
+    public NetworkClock(ArrayList<String> card, ArrayList<String> type, ParkingPanel p1, int MODE, int OVERRIDE, GpioPinDigitalOutput led1) {
+        this.cards = card;
+        this.types = type;
+        this.pp = p1;
+        this.MODE = MODE;
+        this.OVERRIDE = OVERRIDE;
+        this.led1 = led1;
     }
 
     @Override
@@ -42,25 +54,13 @@ public class NetworkClock implements Runnable {
                         //SAVE Card to DATABASE
                         boolean isValid = false;
                         boolean isUpdated = false;
-                        String serverTime = dbh.getServerTime();
-                        System.out.println("Time On Card*" + cardFromReader + "* :: " + serverTime);
-                            boolean alreadyExists = dbh.findCGHCard(cardFromReader);
-//                        boolean alreadyExists = dbh.findEntranceCard(cardFromReader);
-                        if (alreadyExists) {
-                            isUpdated = dbh.updateCGHParkerDB(cardFromReader, "");
-                            //isUpdated = dbh.updateParkerDB(cardFromReader, "");
-                            System.out.println(cardFromReader + "isUpdated" + isUpdated);
-                            System.out.println(cardFromReader + "isUpdated" + isUpdated);
-                            cards.remove(0);
-                        } else {
-                            isValid = dbh.writeCGHEntryWithPix(CONSTANTS.entranceID, cardFromReader, "R", "");
-//                            isValid = dbh.saveParkerDB(CONSTANTS.serverIP, "P01", "EN01", cardFromReader, "", "R", false);
-                            System.out.println(cardFromReader + " isValid:" + isValid);
+                        
+                            isValid = dbh.updateQUEUE(types.get(0), cardFromReader);
                             System.out.println(cardFromReader + " isValid:" + isValid);
                             if (isValid) {
                                 cards.remove(0);
                             }
-                        }
+                        
 
                     } else if (online == false) {
                         System.out.println("OFFLINE");
@@ -68,10 +68,32 @@ public class NetworkClock implements Runnable {
                     }
                     Thread.sleep(100);
                     System.out.println("NETWORK");
+                    
                     //resetAdmin();
                     //Thread.sleep(2000);
+                } else {
+                    if (online == true) {
+                        String count = "";
+                        int override = 0;
+//                        if (MODE == 0) {
+                            count = dbh.getQUEUE("entering");
+                            pp.enteringLabel.setText(count);                    
+                            OVERRIDE = dbh.getOVERRIDE();
+                            if (OVERRIDE == 1) {
+                                pp.sysMsg1.setText("override relay");
+                                led1.high();
+                                dbh.updateOVERRIDE("0");
+                            }
+//                        } else {
+                            count = dbh.getQUEUE("exiting");
+                            pp.exitingLabel.setText(count);    
+//                        }
+                        
+                    }
                 }
+                Thread.sleep(100);
                 System.out.println(".");
+                pp.sysMsg1.setText("");
             } catch (Exception ex) {
                 System.out.println(ex.getMessage());
             }

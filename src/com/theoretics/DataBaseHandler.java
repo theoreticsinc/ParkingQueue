@@ -224,155 +224,78 @@ public class DataBaseHandler extends Thread {
         }
     }
 
-    public boolean writeCGHEntryWithPix(String EntryID, String CardNumber, String trtype, String DateIN) {
-        Connection connection = null;
-        PreparedStatement statement = null;
-        URLConnection uc1 = null;
-        URLConnection uc2 = null;
-        InputStream is1 = null;
-        InputStream is2 = null;
-        javax.net.ssl.HttpsURLConnection.setDefaultHostnameVerifier(
-                new javax.net.ssl.HostnameVerifier() {
-
-            public boolean verify(String hostname,
-                    javax.net.ssl.SSLSession sslSession) {
-                return hostname.equals(CONSTANTS.CAMipaddress1);
-            }
-        });
-        Authenticator.setDefault(new Authenticator() {
-            protected PasswordAuthentication getPasswordAuthentication() {
-                return new PasswordAuthentication(CONSTANTS.CAMusername, CONSTANTS.CAMpassword.toCharArray());
-            }
-        });
-////        try {
-//////            OLD SQL
-////            connection = getConnection(false);
-////            statement = connection.prepareStatement("INSERT INTO unidb.timeindb (`ID`, `CardCode`, `Vehicle`, `Plate`, `Timein`, `Operator`, `PC`, `PIC`, `PIC2`, `Lane`) VALUES "
-////                    + "(NULL, ?, 'CAR' , NULL, NOW(), NULL, ?, NULL, NULL, 'ENTRY')");
-////            statement.setString(1, CardNumber);
-////            statement.setString(2, EntryID);
-////            statement.executeUpdate();
-////        } catch (Exception e) {
-////            System.out.println(e.getMessage());
-////            e.printStackTrace();
-////        }
-
+    public String getQUEUE(String tablename) {
+        String count = "";
         try {
-            String loginPassword = CONSTANTS.CAMusername + ":" + CONSTANTS.CAMpassword;
-            String encoded = new sun.misc.BASE64Encoder().encode(loginPassword.getBytes());
 
-            URL url1 = new URL("http://" + CONSTANTS.CAMusername + ":" + CONSTANTS.CAMpassword + "@" + CONSTANTS.CAMipaddress1 + "/onvif-http/snapshot?Profile_1");//HIKVISION IP Cameras
-            URL url2 = new URL("http://" + CONSTANTS.CAMusername + ":" + CONSTANTS.CAMpassword + "@" + CONSTANTS.CAMipaddress2 + "/onvif-http/snapshot?Profile_1");//HIKVISION IP Cameras
+            connection = getConnection(false);
+            ResultSet rs = selectDatabyFields("SELECT * FROM passingthru." + tablename + " WHERE pkId =  1");
+            // iterate through the java resultset
+            while (rs.next()) {
+                count = rs.getString("count");
 
-            //**********************
-            uc1 = url1.openConnection();
-            uc2 = url2.openConnection();
-            String userpass = CONSTANTS.CAMusername + ":" + CONSTANTS.CAMpassword;
-            //String userpass = "root" + ":" + "Th30r3t1cs";
-            String basicAuth = "Basic " + new String(new sun.misc.BASE64Encoder().encode(userpass.getBytes()));
-            uc1.setRequestProperty("Authorization", basicAuth);
-            uc2.setRequestProperty("Authorization", basicAuth);
-
-            is1 = (InputStream) uc1.getInputStream();
-            is2 = (InputStream) uc2.getInputStream();
-
-        } catch (FileNotFoundException e) {
-            System.out.println("FileNotFoundException: - " + e);
-        } catch (Exception e) {
-            System.out.println("Exception: - " + e);
-        } finally {
-
-            try {
-                connection = getConnection(false);
-//            statement = connection.prepareStatement("insert into unidb.timeindb(CardCode, Plate, PIC2, PIC) " + "values(?,?,?,?)");
-//            statement.setString(1, "HFJ93230");
-//            statement.setString(2, "ABCDEFG");
-//            statement.setBinaryStream(3, is1, 1024 * 32); //Last Parameter has to be bigger than actual 
-//            statement.setBinaryStream(4, is2, 1024 * 32); //Last Parameter has to be bigger than actual 
-//            
-
-                //WITH CAMERA TO DATABASE
-                String SQL = "INSERT INTO unidb.timeindb (`ID`, `CardCode`, `Vehicle`, `Plate`, `Timein`, `Operator`, `PC`, `PIC`, `PIC2`, `Lane`) VALUES "
-                        + "(NULL, ?, 'CAR' , '', NOW(), NULL, ?, ?, ?, 'ENTRY')";
-                statement = connection.prepareStatement(SQL);
-                if (null != is1 && null != is2) {
-                    statement = connection.prepareStatement(SQL);
-                    statement.setBinaryStream(3, is1, 1024 * 128); //Last Parameter has to be bigger than actual      
-                    statement.setBinaryStream(4, is2, 1024 * 128); //Last Parameter has to be bigger than actual 
-                }
-                if (null == is1 && null != is2) {
-                    SQL = "INSERT INTO unidb.timeindb (`ID`, `CardCode`, `Vehicle`, `Plate`, `Timein`, `Operator`, `PC`, `PIC`, `PIC2`, `Lane`) VALUES "
-                            + "(NULL, ?, 'CAR' , '', NOW(), NULL, NULL, ?, ?, 'ENTRY')";
-                    statement = connection.prepareStatement(SQL);
-                    statement.setBinaryStream(3, is2, 1024 * 128); //Last Parameter has to be bigger than actual 
-                }
-                if (null != is1 && null == is2) {
-                    SQL = "INSERT INTO unidb.timeindb (`ID`, `CardCode`, `Vehicle`, `Plate`, `Timein`, `Operator`, `PC`, `PIC`, `PIC2`, `Lane`) VALUES "
-                            + "(NULL, ?, 'CAR' , '', NOW(), NULL, ?, NULL, ?, 'ENTRY')";
-                    statement = connection.prepareStatement(SQL);
-                    statement.setBinaryStream(3, is1, 1024 * 128); //Last Parameter has to be bigger than actual 
-                }
-                if (null == is1 && null == is2) {
-                    SQL = "INSERT INTO unidb.timeindb (`ID`, `CardCode`, `Vehicle`, `Plate`, `Timein`, `Operator`, `PC`, `PIC`, `PIC2`, `Lane`) VALUES "
-                            + "(NULL, ?, 'CAR' , '', NOW(), NULL, ?, NULL, NULL, 'ENTRY')";
-                    statement = connection.prepareStatement(SQL);
-                }
-                statement.setString(1, CardNumber);
-                statement.setString(2, EntryID);
-                statement.executeUpdate();
-                connection.close();
-                statement.close();
-                if (null != is1) {
-                    is1.close();
-                }
-                if (null != is2) {
-                    is2.close();
-                }
-                return true;
-            } catch (Exception e) {
-                System.out.println("Exception Finally: - " + e);
             }
+            st.close();
+            connection.close();
+        } catch (SQLException ex) {
+            ex.printStackTrace();
+            System.out.println(ex.getMessage());
         }
-
-        return false;
+        return count;
     }
-//
-//    public void insertImageToDB() {
-//        Connection connection = null;
-//        PreparedStatement statement = null;
-//        FileInputStream inputStream = null;
-//
-//        try {
-//            File fileimage = new File("C:/Users/Theoretics Inc/Pictures/20190423_114857.jpg");
-//            //BufferedImage img = new BufferedImage(200, 200, BufferedImage.TYPE_BYTE_INDEXED);
-//            //URL url = new URL("http://admin:admin888888@192.168.1.190/cgi-bin/snapshot.cgi?loginuse=admin&loginpas=admin888888");
-//            //Image image = ImageIO.read(url);
-//            inputStream = new FileInputStream(fileimage);
-//            ByteArrayOutputStream baos = new ByteArrayOutputStream();
-//            InputStream is = null;
-//            connection = getConnection(false);
-//            statement = connection.prepareStatement("insert into unidb.timeindb(CardCode, Plate, PIC) " + "values(?,?,?)");
-//            statement.setString(1, "HFJ93230");
-//            statement.setString(2, "ABCDEFG");
-//            statement.setBinaryStream(3, (InputStream) inputStream, (int) (fileimage.length()));
-//            //statement.setBinaryStream(3, (InputStream) is);
-//            statement.executeUpdate();
-//
-//        } catch (FileNotFoundException e) {
-//            System.out.println("FileNotFoundException: - " + e);
-//        } catch (SQLException e) {
-//            System.out.println("SQLException: - " + e);
-//        } finally {
-//
-//            try {
-//                connection.close();
-//                statement.close();
-//            } catch (SQLException e) {
-//                System.out.println("SQLException Finally: - " + e);
-//            }
-//        }
-//    }
+    
+    public boolean updateQUEUE(String tablename, String value) {
+        try {
+            connection = getConnection(false);
+            st = (Statement) connection.createStatement();
+            String SQL = "UPDATE passingthru." + tablename + " SET count = count "+ value +" 1";
+            System.out.println(SQL);
+            st.execute(SQL);
 
+            st.close();
+            connection.close();
+            return true;
+        } catch (Exception ex) {
+            ex.printStackTrace();
+            return false;
+        }
+    }
+    
+    public int getOVERRIDE() {
+        int count = 0;
+        try {
+            connection = getConnection(false);
+            ResultSet rs = selectDatabyFields("SELECT * FROM passingthru.override WHERE pkId =  1");
+            // iterate through the java resultset
+            while (rs.next()) {
+                count = rs.getInt("main");
+            }
+            st.close();
+            connection.close();
+        } catch (SQLException ex) {
+            ex.printStackTrace();
+            System.out.println(ex.getMessage());
+        }
+        return count;
+    }
+    
+    public boolean updateOVERRIDE(String value) {
+        try {
+            connection = getConnection(false);
+            st = (Statement) connection.createStatement();
+            String SQL = "UPDATE passingthru.override SET main = " + value;
+            System.out.println(SQL);
+            st.execute(SQL);
+
+            st.close();
+            connection.close();
+            return true;
+        } catch (Exception ex) {
+            ex.printStackTrace();
+            return false;
+        }
+    }
+    
     public void ShowImageFromDB() {
         try {
             connection = getConnection(false);
@@ -668,16 +591,6 @@ public class DataBaseHandler extends Thread {
             ex.printStackTrace();
             return false;
         }
-    }
-
-    public boolean testTransactionCGHCard(String entId, String cardNumber) {
-        DateConversionHandler dch = new DateConversionHandler();
-        java.util.Date nowStamp = new java.util.Date();
-        SimpleDateFormat sdf = new SimpleDateFormat("yyyy-M-dd H:mm:ss.S");
-        String d2 = sdf.format(nowStamp);
-        long timeStampIN = dch.convertJavaDate2UnixTime(nowStamp);
-        return this.writeCGHEntryWithPix(entId, cardNumber, "R", d2);
-//        return this.writeCGHEntry(entId, cardNumber, "R", d2);
     }
 
     public void resetEntryTransactions(String entranceID) {
@@ -1555,8 +1468,8 @@ public class DataBaseHandler extends Thread {
             DataBaseHandler DBH = new DataBaseHandler();
             String entranceID = "Entry Zone 1";
             //DBH.getEntranceCard();
-            boolean test = DBH.testTransactionCGHCard(entranceID, cardTest);
-            System.out.println("Testing results=" + test);
+            //boolean test = DBH.testTransactionCGHCard(entranceID, cardTest);
+            //System.out.println("Testing results=" + test);
             //DBH.getTransactionCGHCard(cardTest);
             //DBH.resetEntryTransactions(entranceID);
             //DBH.showCGHEntries(entranceID);
