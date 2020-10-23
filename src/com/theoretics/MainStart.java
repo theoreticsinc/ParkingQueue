@@ -63,32 +63,38 @@ public class MainStart {
 
     String strUID = "";
     String prevUID = "0";
-    
+
     int MODE = 0;  //0 = Entry; 1 = Exit
     int OVERRIDE = 0;
-    
-//    ParkingPanel ppUI = null;
+
+    int debugMODE = 0;
     ParkingPanel ppUI = new ParkingPanel();
+
     final GpioController gpio = GpioFactory.getInstance();
 
     public final GpioPinDigitalOutput led1 = gpio.provisionDigitalOutputPin(RaspiPin.GPIO_28, "GREENLED", PinState.LOW);
-    
+    public final GpioPinDigitalOutput relay = gpio.provisionDigitalOutputPin(RaspiPin.GPIO_25, "GREENLED", PinState.LOW);
+
     //RASPBERRY PI4
     //GpioPinDigitalInput buttonDOWN1 = gpio.provisionDigitalInputPin(RaspiPin.GPIO_22, PinPullResistance.PULL_DOWN);    
     //GpioPinDigitalInput buttonDOWN2 = gpio.provisionDigitalInputPin(RaspiPin.GPIO_23, PinPullResistance.PULL_UP);
     //RASPBERRY PI3
     //final GpioPinDigitalInput buttonDOWN1 = gpio.provisionDigitalInputPin(RaspiPin.GPIO_24, PinPullResistance.PULL_DOWN);    
     //final GpioPinDigitalInput buttonDOWN2 = gpio.provisionDigitalInputPin(RaspiPin.GPIO_25, PinPullResistance.PULL_UP);
-    
     GpioPinDigitalInput buttonDOWN1 = null;
     GpioPinDigitalInput buttonDOWN2 = null;
+
     public void startProgram() {
         System.out.println(entranceID + " PARKING QUEUE Signal " + version);
-        ppUI.dispose();
-        ppUI.setUndecorated(true);
-        ppUI.setVisible(true);
-        ppUI.toFront();
-        ppUI.requestFocus();
+        if (debugMODE == 0) {
+            ppUI = new ParkingPanel();
+
+            ppUI.dispose();
+            ppUI.setUndecorated(true);
+            ppUI.setVisible(true);
+            ppUI.toFront();
+            ppUI.requestFocus();
+        }
         try {
             welcomeAudioIn = AudioSystem.getAudioInputStream(MainStart.class.getResource("/sounds/takecard.wav"));
             welcomeClip = AudioSystem.getClip();
@@ -152,16 +158,17 @@ public class MainStart {
 
         this.cards = new ArrayList<String>();
         this.types = new ArrayList<String>();
-  
+
         //CONSTANTS.updateData();
+        NetworkClock nc = null;
+        nc = new NetworkClock(this.cards, this.types, ppUI, MODE, OVERRIDE, led1);
         
-        NetworkClock nc = new NetworkClock(this.cards, this.types, ppUI, MODE, OVERRIDE, led1);
         ThrNetworkClock = new Thread(nc);
-        ThrNetworkClock.start();        
-     
+        ThrNetworkClock.start();
+
         System.out.println("Reader Ready!");
         led1.high();
-        
+
     }
 
     private void notifyError(Exception ex) {
@@ -179,10 +186,10 @@ public class MainStart {
 
     public void setupLED() {
         if (MODE == 0) {
-            buttonDOWN1 = gpio.provisionDigitalInputPin(RaspiPin.GPIO_21, PinPullResistance.PULL_UP);    
+            buttonDOWN1 = gpio.provisionDigitalInputPin(RaspiPin.GPIO_21, PinPullResistance.PULL_UP);
             buttonDOWN2 = gpio.provisionDigitalInputPin(RaspiPin.GPIO_22, PinPullResistance.PULL_UP);
         } else {
-            buttonDOWN1 = gpio.provisionDigitalInputPin(RaspiPin.GPIO_21, PinPullResistance.PULL_UP);    
+            buttonDOWN1 = gpio.provisionDigitalInputPin(RaspiPin.GPIO_21, PinPullResistance.PULL_UP);
             buttonDOWN2 = gpio.provisionDigitalInputPin(RaspiPin.GPIO_22, PinPullResistance.PULL_UP);
         }
         System.out.println("Setting Up GPIO!");
@@ -192,6 +199,7 @@ public class MainStart {
         }
 
         led1.setShutdownOptions(true, PinState.HIGH);
+        relay.setShutdownOptions(true, PinState.HIGH);
 
         buttonDOWN1.addListener(new GpioPinListenerDigital() {
             @Override
@@ -199,57 +207,96 @@ public class MainStart {
                 // display pin state on console
                 if (event.getState() == PinState.LOW) {
                     System.out.println("RED WAS PRESSED DOWN");
-                    ppUI.sysMsg1.setText("RED WAS PRESSED DOWN");
-                    
+                    if (debugMODE == 0) {
+                        ppUI.sysMsg1.setText("RED WAS PRESSED DOWN");
+                    }
+
                     if (MODE == 0) {
                         cards.add("-");
                         types.add("entering");
                         led1.high();
+                        relay.high();
+                        new java.util.Timer().schedule(
+                                new java.util.TimerTask() {
+                            @Override
+                            public void run() {
+                                DataBaseHandler dbh = new DataBaseHandler(CONSTANTS.serverIP);
+                                dbh.setQUEUE("entering", "0");
+                            }
+                        },
+                                1000
+                        );
                     } else {
                         cards.add("-");
                         types.add("exiting");
                         led1.low();
+                        relay.low();
                     }
                 } else if (event.getState() == PinState.HIGH) {
                     System.out.println("RED WAS PRESSED UP");
-                    ppUI.sysMsg1.setText("RED WAS PRESSED UP");
+                    if (debugMODE == 0) {
+                        ppUI.sysMsg1.setText("RED WAS PRESSED UP");
+                    }
                 }
                 Thread.yield();
             }
         });
-        
+
         buttonDOWN2.addListener(new GpioPinListenerDigital() {
             @Override
             public void handleGpioPinDigitalStateChangeEvent(GpioPinDigitalStateChangeEvent event) {
                 // display pin state on console
                 if (event.getState() == PinState.LOW) {
                     System.out.println("GREEN WAS PRESSED DOWN");
-                    ppUI.sysMsg1.setText("GREEN WAS PRESSED DOWN");
-                    
+                    if (debugMODE == 0) {
+                        ppUI.sysMsg1.setText("GREEN WAS PRESSED DOWN");
+                    }
+
                     if (MODE == 0) {
                         cards.add("+");
                         types.add("entering");
                         led1.low();
+                        relay.low();
+                        new java.util.Timer().schedule(
+                                new java.util.TimerTask() {
+                            @Override
+                            public void run() {
+                                DataBaseHandler dbh = new DataBaseHandler(CONSTANTS.serverIP);
+                                dbh.setQUEUE("exiting", "0");
+                            }
+                        },
+                                1000
+                        );
                     } else {
                         cards.add("+");
                         types.add("exiting");
+                        DataBaseHandler dbh = new DataBaseHandler(CONSTANTS.serverIP);
+                        String count = dbh.getQUEUE("entering");
+                        if (debugMODE == 0) {
+                            ppUI.enteringLabel.setText(count);
+                        }
                         led1.high();
-                        new java.util.Timer().schedule( 
+                        relay.low();
+                        new java.util.Timer().schedule(
                                 new java.util.TimerTask() {
-                                    @Override
-                                    public void run() {
-                                        OVERRIDE = 1;
-                                        DataBaseHandler dbh = new DataBaseHandler(CONSTANTS.serverIP);
-                                        dbh.updateOVERRIDE("1");
-                                        ppUI.sysMsg1.setText("SENT OVERRIDE");
-                                    }
-                                }, 
-                                10000 
+                            @Override
+                            public void run() {
+                                OVERRIDE = 1;
+                                DataBaseHandler dbh = new DataBaseHandler(CONSTANTS.serverIP);
+                                dbh.updateOVERRIDE("1");
+                                if (debugMODE == 0) {
+                                    ppUI.sysMsg1.setText("SENT OVERRIDE");
+                                }
+                            }
+                        },
+                                10000
                         );
                     }
                 } else if (event.getState() == PinState.HIGH) {
                     System.out.println("GREEN WAS PRESSED UP");
-                    ppUI.sysMsg1.setText("GREEN WAS PRESSED UP");
+                    if (debugMODE == 0) {
+                        ppUI.sysMsg1.setText("GREEN WAS PRESSED UP");
+                    }
                 }
                 Thread.yield();
             }

@@ -13,6 +13,7 @@ import java.util.logging.Logger;
  * @author Theoretics Inc
  */
 public class CONSTANTS {
+//    public static String serverIP = "127.0.0.1";
     public static String serverIP = "192.168.1.80";
     public static String entranceID = "Entry Zone 1";  //BOOTH 
     

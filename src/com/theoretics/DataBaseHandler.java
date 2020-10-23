@@ -261,6 +261,23 @@ public class DataBaseHandler extends Thread {
         }
     }
     
+    public boolean setQUEUE(String tablename, String value) {
+        try {
+            connection = getConnection(false);
+            st = (Statement) connection.createStatement();
+            String SQL = "UPDATE passingthru." + tablename + " SET count = "+ value +"";
+            System.out.println(SQL);
+            st.execute(SQL);
+
+            st.close();
+            connection.close();
+            return true;
+        } catch (Exception ex) {
+            ex.printStackTrace();
+            return false;
+        }
+    }
+    
     public int getOVERRIDE() {
         int count = 0;
         try {
