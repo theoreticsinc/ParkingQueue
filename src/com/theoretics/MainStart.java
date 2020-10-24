@@ -1,5 +1,8 @@
 package com.theoretics;
 
+import java.net.*;
+import java.io.*;
+
 import com.pi4j.wiringpi.Spi;
 import com.pi4j.io.gpio.GpioController;
 import com.pi4j.io.gpio.GpioFactory;
@@ -32,7 +35,7 @@ import org.apache.logging.log4j.Logger;
 
 public class MainStart {
 
-    String version = "v.2.0.5";
+    String version = "v.3.0.1";
     String entranceID = "EN01";
 
     String cardFromReader = "";
@@ -64,7 +67,7 @@ public class MainStart {
     String strUID = "";
     String prevUID = "0";
 
-    int MODE = 0;  //0 = Entry; 1 = Exit
+    int MODE = 1;  //0 = Entry; 1 = Exit
     int OVERRIDE = 0;
 
     int debugMODE = 0;
@@ -83,6 +86,8 @@ public class MainStart {
     //final GpioPinDigitalInput buttonDOWN2 = gpio.provisionDigitalInputPin(RaspiPin.GPIO_25, PinPullResistance.PULL_UP);
     GpioPinDigitalInput buttonDOWN1 = null;
     GpioPinDigitalInput buttonDOWN2 = null;
+    NetworkClock nc = null;
+    FileHandler fh = new FileHandler();
 
     public void startProgram() {
         System.out.println(entranceID + " PARKING QUEUE Signal " + version);
@@ -160,15 +165,24 @@ public class MainStart {
         this.types = new ArrayList<String>();
 
         //CONSTANTS.updateData();
-        NetworkClock nc = null;
         nc = new NetworkClock(this.cards, this.types, ppUI, MODE, OVERRIDE, led1);
-        
+
         ThrNetworkClock = new Thread(nc);
         ThrNetworkClock.start();
 
         System.out.println("Reader Ready!");
         led1.high();
 
+        if (MODE == 0) {
+//            FileHandler fh = new FileHandler();
+//            fh.createFile("entry");
+//            fh.createFile("exit");
+//            fh.writeFile("entry", "5");
+//            fh.writeFile("exit", "8");
+            GreetServer srvr = new GreetServer(nc);
+            srvr.startServer();
+
+        }
     }
 
     private void notifyError(Exception ex) {
@@ -207,6 +221,11 @@ public class MainStart {
                 // display pin state on console
                 if (event.getState() == PinState.LOW) {
                     System.out.println("RED WAS PRESSED DOWN");
+                    try {
+                        Thread.yield();
+                    } catch (Exception ex) {
+                        java.util.logging.Logger.getLogger(MainStart.class.getName()).log(Level.SEVERE, null, ex);
+                    }
                     if (debugMODE == 0) {
                         ppUI.sysMsg1.setText("RED WAS PRESSED DOWN");
                     }
@@ -216,21 +235,58 @@ public class MainStart {
                         types.add("entering");
                         led1.high();
                         relay.high();
+                        
+                        //RESET ENTERING SCENARIO
+                        try {
+                            fh.writeFile("entry", "0");
+                            ppUI.enteringLabel.setText(0 + "");
+                        } catch (Exception exception) {
+                            exception.printStackTrace();
+                        }
+                        /*try {
+                            String n = fh.readFile("entry");
+                            int entry = Integer.parseInt(n);
+                            entry--;
+                            ppUI.enteringLabel.setText(entry + "");
+                            fh.writeFile("entry", entry + "");
+                        } catch (Exception exception) {
+                            fh.writeFile("entry", "0");
+                            exception.printStackTrace();
+                        }*/
+ /*
                         new java.util.Timer().schedule(
                                 new java.util.TimerTask() {
                             @Override
-                            public void run() {
-                                DataBaseHandler dbh = new DataBaseHandler(CONSTANTS.serverIP);
-                                dbh.setQUEUE("entering", "0");
+                            public void run() {                                
+//                                DataBaseHandler dbh = new DataBaseHandler(CONSTANTS.serverIP);
+//                                dbh.setQUEUE("entering", "0");
                             }
                         },
                                 1000
-                        );
+                        );*/
                     } else {
-                        cards.add("-");
-                        types.add("exiting");
-                        led1.low();
-                        relay.low();
+//                        cards.add("-");
+//                        types.add("exiting");
+                        GreetClient gc = new GreetClient();
+                        try {
+                            gc.startConnection(CONSTANTS.serverIP, 7890);
+                            String resp = gc.sendMessage("removeExit");
+                            System.out.println("Response from Server: " + resp);
+                        } catch (Exception e) {
+                            e.printStackTrace();
+                        }
+//                        led1.low();
+//                        relay.low();
+                        /*try {
+                            String n = fh.readFile("exit");
+                            int exit = Integer.parseInt(n);
+                            exit--;
+                            ppUI.exitingLabel.setText(exit + "");
+                            fh.writeFile("exit", exit + "");
+                        } catch (Exception exception) {
+                            fh.writeFile("exit", "0");
+                            exception.printStackTrace();
+                        }*/
                     }
                 } else if (event.getState() == PinState.HIGH) {
                     System.out.println("RED WAS PRESSED UP");
@@ -248,6 +304,11 @@ public class MainStart {
                 // display pin state on console
                 if (event.getState() == PinState.LOW) {
                     System.out.println("GREEN WAS PRESSED DOWN");
+                    try {
+                        Thread.yield();
+                    } catch (Exception ex) {
+                        java.util.logging.Logger.getLogger(MainStart.class.getName()).log(Level.SEVERE, null, ex);
+                    }
                     if (debugMODE == 0) {
                         ppUI.sysMsg1.setText("GREEN WAS PRESSED DOWN");
                     }
@@ -257,40 +318,46 @@ public class MainStart {
                         types.add("entering");
                         led1.low();
                         relay.low();
-                        new java.util.Timer().schedule(
-                                new java.util.TimerTask() {
-                            @Override
-                            public void run() {
-                                DataBaseHandler dbh = new DataBaseHandler(CONSTANTS.serverIP);
-                                dbh.setQUEUE("exiting", "0");
-                            }
-                        },
-                                1000
-                        );
-                    } else {
-                        cards.add("+");
-                        types.add("exiting");
-                        DataBaseHandler dbh = new DataBaseHandler(CONSTANTS.serverIP);
-                        String count = dbh.getQUEUE("entering");
-                        if (debugMODE == 0) {
-                            ppUI.enteringLabel.setText(count);
+                        //RESET EXITING SCENARIO
+                        try {
+                            fh.writeFile("exit", "0");
+                            ppUI.exitingLabel.setText(0 + "");
+                        } catch (Exception exception) {
+                            exception.printStackTrace();
                         }
-                        led1.high();
-                        relay.low();
-                        new java.util.Timer().schedule(
-                                new java.util.TimerTask() {
-                            @Override
-                            public void run() {
-                                OVERRIDE = 1;
-                                DataBaseHandler dbh = new DataBaseHandler(CONSTANTS.serverIP);
-                                dbh.updateOVERRIDE("1");
-                                if (debugMODE == 0) {
-                                    ppUI.sysMsg1.setText("SENT OVERRIDE");
-                                }
-                            }
-                        },
-                                10000
-                        );
+
+                    } else {
+//                        cards.add("+");
+//                        types.add("exiting");
+                        GreetClient gc = new GreetClient();
+                        try {
+                            gc.startConnection(CONSTANTS.serverIP, 7890);
+                            String resp = gc.sendMessage("exit");
+                            gc.startConnection(CONSTANTS.serverIP, 7890);
+                            resp = gc.sendMessage("override");
+                            System.out.println("Response from Server: " + resp);
+                        } catch (Exception e) {
+                            e.printStackTrace();
+                        }
+                        /*                        
+                        ppUI.exitingLabel.setText("+1");
+//                        DataBaseHandler dbh = new DataBaseHandler(CONSTANTS.serverIP);
+//                        String count = dbh.getQUEUE("entering");
+                        if (debugMODE == 0) {
+                            ppUI.exitingLabel.setText("count");
+                        }*/
+//                        led1.high();
+//                        relay.low();
+                        /*try {
+                            String n = fh.readFile("exit");
+                            int exit = Integer.parseInt(n);
+                            exit++;
+                            ppUI.exitingLabel.setText(exit + "");
+                            fh.writeFile("exit", exit + "");
+                        } catch (Exception exception) {
+                            fh.writeFile("exit", "0");
+                            exception.printStackTrace();
+                        }*/
                     }
                 } else if (event.getState() == PinState.HIGH) {
                     System.out.println("GREEN WAS PRESSED UP");

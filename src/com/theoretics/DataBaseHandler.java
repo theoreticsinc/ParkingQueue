@@ -237,9 +237,9 @@ public class DataBaseHandler extends Thread {
             }
             st.close();
             connection.close();
-        } catch (SQLException ex) {
-            ex.printStackTrace();
-            System.out.println(ex.getMessage());
+        } catch (Exception ex) {
+            //ex.printStackTrace();
+            System.out.println("PROBLEM WITH PASSINGTHRU QUERY");
         }
         return count;
     }
@@ -437,25 +437,25 @@ public class DataBaseHandler extends Thread {
             ex.printStackTrace();
             //System.exit(1);
         }
-        DriverManager.setLoginTimeout(1);
+        DriverManager.setLoginTimeout(5);
         //Connection connection=null;
         if (mainorder == false) {
             try {
                 connection = DriverManager.getConnection(MainServer_URL,
                         CONSTANTS.USERNAME, CONSTANTS.PASSWORD);
-                connection.setNetworkTimeout(Executors.newFixedThreadPool(2), 2000);
+                connection.setNetworkTimeout(Executors.newFixedThreadPool(2), 5000);
 
                 return (connection);
             } catch (Exception ex) {
-                System.out.println(ex.getMessage());
+                System.out.println("CANT CONNECT TO DB"); //ex.getMessage()
                 try {
                     connection = DriverManager.getConnection(SubServer_URL,
                             CONSTANTS.USERNAME, CONSTANTS.PASSWORD);
-                    connection.setNetworkTimeout(Executors.newFixedThreadPool(2), 2000);
+                    connection.setNetworkTimeout(Executors.newFixedThreadPool(2), 5000);
 
                     return (connection);
                 } catch (Exception ex2) {
-                    System.out.println(ex2.getMessage());
+                    System.out.println("STILL CANT CONNECT TO DB"); //ex2.getMessage()
                 }
             }
         } else {
